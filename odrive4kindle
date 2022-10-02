@@ -1,0 +1,17 @@
+curl --write-out '%{http_code}\n' --cookie-jar "cookie.txt" -s -S -o /dev/null "https://$odIlsName.overdrive.com/account/ozone/sign-in?forward=%2F"
+
+curl --write-out '%{http_code}\n' --cookie-jar "cookie.txt" --cookie "cookie.txt" -L -s -S -o /dev/null "https://$odIlsName.overdrive.com/account/signInOzone?forwardUrl=%2F" --data-raw "ilsName=$odIlsName&authType=Local&libraryName=&username=$odUser&password=$odPassword"
+
+bookId=`curl --cookie-jar "cookie.txt" --cookie "cookie.txt" -s -S "https://$odIlsName.overdrive.com/account/loans" | pup 'a[data-format-id="ebook-epub-adobe"] json{}' | jq '.[0]["data-media-id"]' | tr -d \"`
+
+echo "Book ID is $bookId"
+
+curl --cookie-jar "cookie.txt" --cookie "cookie.txt" -L -o $bookId.acsm "https://$odIlsName.overdrive.com/media/download/ebook-epub-adobe/$bookId"
+
+bookName=`cat $bookId.acsm | grep "dc:title" | sed -n "s/.*<dc:title .*>\(.*\)<\/dc:title>/\1/p"`
+
+./knock /usr/knock/$bookId.acsm
+
+mv "$bookId.epub" "$bookName.epub"
+
+echo "Transfer book" | mailx -s "$bookName" -r "$gmailName<$gmailUser>" -a "$bookName.epub" -S smtp="smtp.gmail.com:465" -S smtp-use-starttls -S smtp-auth=login -S smtp-auth-user="$gmailUser" -S smtp-auth-password="$gmailPassword" $kindleEmail
